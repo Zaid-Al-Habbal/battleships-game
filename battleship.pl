@@ -136,22 +136,38 @@ place_n_ships_bt(Type, N, Size, BoardIn, BoardOut, ShipsIn, ShipsOut) :-
     place_n_ships_bt(Type, N1, Size, BoardMid, BoardOut, ShipsMid, ShipsOut).
 
 try_place_ship_bt(Type, Len, Size, BoardIn, BoardOut, ShipsIn, [(Type,Row,Col,Orient)|ShipsIn]) :-
-    % Try multiple random starting points
-    between(1, 10, _),  % Try up to 10 random attempts
-    random_between(1, Size, Row),
-    random_between(1, Size, Col),
-    random_between(0, 1, OrientChoice),
-    (OrientChoice = 0 -> Orient = horizontal ; Orient = vertical),
-    ship_cells(Row, Col, Orient, Len, Cells),
-    valid_ship_placement(Cells, Size, BoardIn),
-    mark_ship_cells(Cells, BoardIn, BoardOut),
-    !.
+    % Try extensive random placement with better bounds
+    attempt_random_placement(Len, Size, BoardIn, BoardOut, Row, Col, Orient, 200).
 
 try_place_ship_bt(Type, Len, Size, BoardIn, BoardOut, ShipsIn, [(Type,Row,Col,Orient)|ShipsIn]) :-
     % Fall back to systematic search if random fails
     (Orient = horizontal ; Orient = vertical),
     between(1, Size, Row),
     between(1, Size, Col),
+    ship_cells(Row, Col, Orient, Len, Cells),
+    valid_ship_placement(Cells, Size, BoardIn),
+    mark_ship_cells(Cells, BoardIn, BoardOut),
+    !.
+
+% Helper predicate for random placement attempts
+attempt_random_placement(Len, Size, BoardIn, BoardOut, Row, Col, Orient, MaxAttempts) :-
+    between(1, MaxAttempts, _),
+    random_between(0, 1, OrientChoice),
+    (OrientChoice = 0 -> Orient = horizontal ; Orient = vertical),
+    
+    % Calculate valid bounds based on orientation and ship length
+    (Orient = horizontal -> 
+        (MaxCol is Size - Len + 1,
+         MaxCol > 0,
+         random_between(1, MaxCol, Col),
+         random_between(1, Size, Row))
+    ;
+        (MaxRow is Size - Len + 1,
+         MaxRow > 0,
+         random_between(1, MaxRow, Row),
+         random_between(1, Size, Col))
+    ),
+    
     ship_cells(Row, Col, Orient, Len, Cells),
     valid_ship_placement(Cells, Size, BoardIn),
     mark_ship_cells(Cells, BoardIn, BoardOut),
@@ -214,14 +230,16 @@ init_guess_board(Size) :-
         )
     ).
 
-% Print the partial board (hide ships, show guesses and hints with ship shapes)
+% Print the partial board (hide ships, show guesses)
 print_partial_board(Size) :-
     nl, write('Your Board:'), nl,
-    write('    '),
-    forall(between(1, Size, Col), (write(Col), write(' '))),
+    write('     '),  % Extra space to account for double-digit rows
+    forall(between(1, Size, Col), (
+        (Col < 10 -> format('~w ', [Col]) ; format('~w', [Col]))
+    )),
     nl,
     forall(between(1, Size, Row), (
-        format('~w | ', [Row]),
+        (Row < 10 -> format('~w  | ', [Row]) ; format('~w | ', [Row])),
         forall(between(1, Size, Col), (
             (hint_cell(Row, Col, ship) -> 
                 (ship_display(Row, Col, _, Symbol) -> write(Symbol) ; write('O')), write(' ') ;
@@ -233,9 +251,10 @@ print_partial_board(Size) :-
         row_clue(Row, RC), format('| ~w', [RC]),
         nl
     )),
-    write('    '),
+    write('     '),  % Extra space to match the header
     forall(between(1, Size, Col), (
-        col_clue(Col, CC), format('~w ', [CC])
+        col_clue(Col, CC), 
+        (Col < 10 -> format('~w ', [CC]) ; format('~w', [CC]))
     )),
     nl, nl.
 
@@ -342,9 +361,9 @@ game_won(Size) :-
 % Print the solution board with ship shapes
 print_solution(Size) :-
     nl, write('Solution:'), nl,
-    write('    '), forall(between(1, Size, Col), (write(Col), write(' '))), nl,
+    write('     '), forall(between(1, Size, Col), ((Col < 10 -> format('~w ', [Col]) ; format('~w', [Col])))), nl,
     forall(between(1, Size, Row), (
-        format('~w | ', [Row]),
+        (Row < 10 -> format('~w  | ', [Row]) ; format('~w | ', [Row])),
         forall(between(1, Size, Col), (
             (solution_cell(Row, Col, ship) -> 
                 (ship_display(Row, Col, _, Symbol) -> write(Symbol) ; write('O')), write(' ') 
