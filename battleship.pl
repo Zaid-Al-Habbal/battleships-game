@@ -7,12 +7,45 @@
 :- dynamic row_clue/2.  % row_clue(Row, Count)
 :- dynamic col_clue/2.  % col_clue(Col, Count)
 :- dynamic hint_cell/3. % hint_cell(Row, Col, State) - State: ship, water
+:- dynamic ship_display/4. % ship_display(Row, Col, Type, Symbol) - for visual representation
 
 % Ship types and sizes
 ship_type(battleship, 4).
 ship_type(cruiser, 3).
 ship_type(destroyer, 2).
 ship_type(submarine, 1).
+
+% Ship symbols for different orientations and positions
+% Battleship (4 cells)
+ship_symbol(battleship, horizontal, 1, '◄').  % Left end
+ship_symbol(battleship, horizontal, 2, '■').  % Middle
+ship_symbol(battleship, horizontal, 3, '■').  % Middle
+ship_symbol(battleship, horizontal, 4, '►').  % Right end
+
+ship_symbol(battleship, vertical, 1, '▲').    % Top end
+ship_symbol(battleship, vertical, 2, '■').    % Middle
+ship_symbol(battleship, vertical, 3, '■').    % Middle
+ship_symbol(battleship, vertical, 4, '▼').    % Bottom end
+
+% Cruiser (3 cells)
+ship_symbol(cruiser, horizontal, 1, '◄').     % Left end
+ship_symbol(cruiser, horizontal, 2, '■').     % Middle
+ship_symbol(cruiser, horizontal, 3, '►').     % Right end
+
+ship_symbol(cruiser, vertical, 1, '▲').       % Top end
+ship_symbol(cruiser, vertical, 2, '■').       % Middle
+ship_symbol(cruiser, vertical, 3, '▼').       % Bottom end
+
+% Destroyer (2 cells)
+ship_symbol(destroyer, horizontal, 1, '◄').   % Left end
+ship_symbol(destroyer, horizontal, 2, '►').   % Right end
+
+ship_symbol(destroyer, vertical, 1, '▲').     % Top end
+ship_symbol(destroyer, vertical, 2, '▼').     % Bottom end
+
+% Submarine (1 cell)
+ship_symbol(submarine, horizontal, 1, '●').   % Single cell
+ship_symbol(submarine, vertical, 1, '●').     % Single cell
 
 % Fleet for each board size
 fleet(6, [cruiser-1, destroyer-2, submarine-2]).
@@ -27,7 +60,7 @@ start_battleship :-
     init_board(Size),
     place_fleet(Fleet, Size),
     compute_clues(Size),
-    add_random_hints(Size, 2),
+    add_random_hints(Size, 3),
     init_guess_board(Size),
     print_partial_board(Size),
     print_clues(Size),
@@ -40,7 +73,7 @@ restart_game(Size) :-
     init_board(Size),
     place_fleet(Fleet, Size),
     compute_clues(Size),
-    add_random_hints(Size, 2),
+    add_random_hints(Size, 3),
     init_guess_board(Size),
     write('Game restarted!'), nl,
     print_partial_board(Size),
@@ -52,6 +85,7 @@ init_board(Size) :-
     retractall(cell(_,_,_)),
     retractall(solution_cell(_,_,_)),
     retractall(hint_cell(_,_,_)),
+    retractall(ship_display(_,_,_,_)),
     forall(between(1, Size, Row),
         forall(between(1, Size, Col),
             (assertz(cell(Row, Col, empty)), assertz(solution_cell(Row, Col, water)))
@@ -68,8 +102,25 @@ place_fleet(Fleet, Size) :-
     place_fleet_bt(Fleet, Size, Board, FinalBoard, [], Ships),
     retractall(solution_cell(_,_,_)),
     retractall(ship(_,_,_,_)),
+    retractall(ship_display(_,_,_,_)),
     commit_solution(FinalBoard),
-    commit_ships(Ships).
+    commit_ships(Ships),
+    create_ship_display(Ships).
+
+% Create visual display for ships
+create_ship_display([]).
+create_ship_display([(Type, Row, Col, Orientation)|Rest]) :-
+    ship_type(Type, Len),
+    ship_cells(Row, Col, Orientation, Len, Cells),
+    create_ship_symbols(Cells, Type, Orientation, 1),
+    create_ship_display(Rest).
+
+create_ship_symbols([], _, _, _).
+create_ship_symbols([(R, C)|Rest], Type, Orientation, Position) :-
+    ship_symbol(Type, Orientation, Position, Symbol),
+    assertz(ship_display(R, C, Type, Symbol)),
+    NextPos is Position + 1,
+    create_ship_symbols(Rest, Type, Orientation, NextPos).
 
 % Recursive fleet placement
 place_fleet_bt([], _, Board, Board, Ships, Ships).
@@ -163,7 +214,7 @@ init_guess_board(Size) :-
         )
     ).
 
-% Print the partial board (hide ships, show guesses)
+% Print the partial board (hide ships, show guesses and hints with ship shapes)
 print_partial_board(Size) :-
     nl, write('Your Board:'), nl,
     write('    '),
@@ -172,7 +223,8 @@ print_partial_board(Size) :-
     forall(between(1, Size, Row), (
         format('~w | ', [Row]),
         forall(between(1, Size, Col), (
-            (hint_cell(Row, Col, ship) -> write('O ') ;
+            (hint_cell(Row, Col, ship) -> 
+                (ship_display(Row, Col, _, Symbol) -> write(Symbol) ; write('O')), write(' ') ;
              hint_cell(Row, Col, water) -> write('~ ') ;
              cell(Row, Col, guess_ship) -> write('O ') ;
              cell(Row, Col, guess_water) -> write('~ ') ;
@@ -287,17 +339,32 @@ game_won(Size) :-
         )
     ).
 
-% Print the solution board
+% Print the solution board with ship shapes
 print_solution(Size) :-
     nl, write('Solution:'), nl,
     write('    '), forall(between(1, Size, Col), (write(Col), write(' '))), nl,
     forall(between(1, Size, Row), (
         format('~w | ', [Row]),
         forall(between(1, Size, Col), (
-            (solution_cell(Row, Col, ship) -> write('O ') ; write('~ '))
+            (solution_cell(Row, Col, ship) -> 
+                (ship_display(Row, Col, _, Symbol) -> write(Symbol) ; write('O')), write(' ') 
+            ; write('~ '))
         )),
         nl
-    )), nl.
+    )), nl,
+    print_ship_legend.
+
+% Print legend showing ship types and their symbols
+print_ship_legend :-
+    nl, write('Ship Legend:'), nl,
+    write('Battleship (4): '), 
+    write('Horizontal: ◄■■► | Vertical: ▲■■▼'), nl,
+    write('Cruiser (3):    '), 
+    write('Horizontal: ◄■► | Vertical: ▲■▼'), nl,
+    write('Destroyer (2):  '), 
+    write('Horizontal: ◄►  | Vertical: ▲▼'), nl,
+    write('Submarine (1):  '), 
+    write('●'), nl, nl.
 
 % Add N random hints based on the solution
 add_random_hints(Size, N) :-
