@@ -40,6 +40,7 @@ ship_segment_form(battleship, 4, end).
 symbol_value(submarine, none, '●').
 symbol_value(start, horizontal, '◀').
 symbol_value(start, vertical, '▲').
+symbol_value(middle, none, '■').
 symbol_value(middle, horizontal, '■').
 symbol_value(middle, vertical, '■').
 symbol_value(end, horizontal, '▶').
@@ -72,6 +73,8 @@ validate_form_orientation(submarine, none):- !.
 validate_form_orientation(start, horizontal):- !.
 validate_form_orientation(start, vertical):- !.
 validate_form_orientation(middle, none):- !.
+validate_form_orientation(middle, horizontal):- !.
+validate_form_orientation(middle, vertical):- !.
 validate_form_orientation(end, horizontal):- !.
 validate_form_orientation(end, vertical):- !.
 
@@ -288,7 +291,7 @@ check_rules:-
 	check_rule_3,
 	check_rule_4.
 
-%------------------------------ fill_water ------------------------------
+%------------------------------ fill_row_col_water ------------------------------
 
 fill_water(Row, Col):-
 	(
@@ -323,6 +326,24 @@ check_clue:-
 	board_size(MaxRow, MaxCol),
 	forall(between(1, MaxRow, Row), fill_row_water(Row)),
 	forall(between(1, MaxCol, Col), fill_col_water(Col)).
+
+%------------------------------ fill_ship_around_water ------------------------------
+
+fill_ship_around_water(Row, Col, submarine, Orientation):- true.
+
+fill_ship_around_water(Row, Col, start, Orientation):- true.
+
+fill_ship_around_water(Row, Col, middle, Orientation):- true.
+
+fill_ship_around_water(Row, Col, end, Orientation):- true.
+
+helper_ship_around(Row, Col, Type, Segment, Orientation):-
+	ship_segment_form(Type, Segment, Form),
+	fill_ship_around_water(Row, Col, Form, Orientation).
+
+check_ship_around:-
+	forall(ship(Row, Col, Type, Segment, Orientation), helper_ship_around(Row, Col, Type, Segment, Orientation)),
+	forall(hint_ship(Row, Col, Form, Orientation), fill_ship_around_water(Row, Col, Form, Orientation)).
 	
 %------------------------------ clear ------------------------------
 
@@ -533,6 +554,43 @@ test_6:-
 	
 	print_board,
 	
+	check_clue,
+
+	print_board.
+
+test_8:-
+	clear,
+  
+  	set_board_size(10, 10),
+  
+  	set_number_of_ships_in_row(1, 1),
+	set_number_of_ships_in_row(2, 2),
+	set_number_of_ships_in_row(3, 1),
+	set_number_of_ships_in_row(4, 5),
+	set_number_of_ships_in_row(5, 1),
+	set_number_of_ships_in_row(6, 2),
+	set_number_of_ships_in_row(7, 2),
+	set_number_of_ships_in_row(8, 1),
+	set_number_of_ships_in_row(9, 0),
+	set_number_of_ships_in_row(10, 1),
+  
+	set_number_of_ships_in_col(1, 1),
+	set_number_of_ships_in_col(2, 1),
+	set_number_of_ships_in_col(3, 1),
+	set_number_of_ships_in_col(4, 2),
+	set_number_of_ships_in_col(5, 3),
+	set_number_of_ships_in_col(6, 4),
+	set_number_of_ships_in_col(7, 1),
+	set_number_of_ships_in_col(8, 1),
+	set_number_of_ships_in_col(9, 4),
+	set_number_of_ships_in_col(10, 2),
+
+
+	set_hint_ship(3, 1, submarine, none),
+    set_hint_ship(10, 2, submarine, none),
+    set_hint_ship(9, 8, middle, none),
+	print_board,
+  
 	check_clue,
 
 	print_board.
