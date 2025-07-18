@@ -106,15 +106,10 @@ list_waters:- listing(water).
 check_left(Row, Col, Type, Segment, horizontal):-
     Col > 1,
 	Segment > 1,
+	!,
     PreviousCol is Col - 1,
     PreviousSegment is Segment - 1,
-    ship(Row, PreviousCol, Type, PreviousSegment, horizontal),
-    !.
-	
-check_left(_, _, _, Segment, horizontal):-
-	Segment > 1,
-	!,
-	fail.
+    ship(Row, PreviousCol, Type, PreviousSegment, horizontal).
 
 check_left(Row, Col, _, _, _):-
     (
@@ -131,15 +126,10 @@ check_left(Row, Col, _, _, _):-
 check_up(Row, Col, Type, Segment, vertical):-
 	Row > 1,
     Segment > 1,
+	!,
     PreviousRow is Row - 1,
     PreviousSegment is Segment - 1,
-    ship(PreviousRow, Col, Type, PreviousSegment, vertical),
-    !.
-
-check_up(_, _, _, Segment, vertical):-
-	Segment > 1,
-	!,
-	fail.
+    ship(PreviousRow, Col, Type, PreviousSegment, vertical).
 
 check_up(Row, Col, _, _, _):-
     (
@@ -158,16 +148,10 @@ check_right(Row, Col, Type, Segment, horizontal):-
 	ship_length(Type, Length),
 	Col < MaxCol,
     Segment < Length,
+	!,
     NextCol is Col + 1,
     NextSegment is Segment + 1,
-    ship(Row, NextCol, Type, NextSegment, horizontal),
-    !.
-
-check_right(_, _, Type, Segment, horizontal):-
-	ship_length(Type, Length),
-	Segment < Length,
-	!,
-	fail.
+    ship(Row, NextCol, Type, NextSegment, horizontal).
 
 check_right(Row, Col, _, _, _):-
     board_size(_, MaxCol),
@@ -187,16 +171,10 @@ check_down(Row, Col, Type, Segment, vertical):-
 	ship_length(Type, Length),
 	Row < MaxRow,
     Segment < Length,
+	!,
     NextRow is Row + 1,
     NextSegment is Segment + 1,
-    ship(NextRow, Col, Type, NextSegment, vertical),
-    !.
-	
-check_down(_, _, Type, Segment, vertical):-
-	ship_length(Type, Length),
-    Segment < Length,
-	!,
-	fail.
+    ship(NextRow, Col, Type, NextSegment, vertical).
 
 check_down(Row, Col, _, _, _):-
     board_size(MaxRow, _),
