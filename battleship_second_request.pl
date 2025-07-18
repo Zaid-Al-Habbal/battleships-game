@@ -1,5 +1,10 @@
 %------------------------------ init ------------------------------
 
+ship_form(submarine).
+ship_form(start).
+ship_form(middle).
+ship_form(end).
+
 ship_type(submarine).
 ship_type(destroyer).
 ship_type(cruiser).
@@ -50,23 +55,33 @@ orientation(vertical).
 :- dynamic(number_of_ships_in_row/2).
 :- dynamic(number_of_ships_in_col/2).
 :- dynamic(ship/5).
+:- dynamic(hint_ship/4).
 :- dynamic(water/2).
 
 %------------------------------ validations ------------------------------
 
-validate_orientation(submarine, none):- !.
-validate_orientation(destroyer, horizontal):- !.
-validate_orientation(destroyer, vertical):- !.
-validate_orientation(cruiser, horizontal):- !.
-validate_orientation(cruiser, vertical):- !.
-validate_orientation(battleship, horizontal):- !.
-validate_orientation(battleship, vertical):- !.
+validate_type_orientation(submarine, none):- !.
+validate_type_orientation(destroyer, horizontal):- !.
+validate_type_orientation(destroyer, vertical):- !.
+validate_type_orientation(cruiser, horizontal):- !.
+validate_type_orientation(cruiser, vertical):- !.
+validate_type_orientation(battleship, horizontal):- !.
+validate_type_orientation(battleship, vertical):- !.
+
+validate_form_orientation(submarine, none):- !.
+validate_form_orientation(start, horizontal):- !.
+validate_form_orientation(start, vertical):- !.
+validate_form_orientation(middle, none):- !.
+validate_form_orientation(end, horizontal):- !.
+validate_form_orientation(end, vertical):- !.
 
 validate_board_size(Row, Col):- Row > 0, Col > 0.
 validate_row(Row):- board_size(MaxRow, _), Row > 0, Row =< MaxRow.
 validate_col(Col):- board_size(_, MaxCol), Col > 0, Col =< MaxCol.
 
-validate_ship(Type, Segment, Orientation):- ship_type(Type), type_segment(Type, Segment), orientation(Orientation), validate_orientation(Type, Orientation).
+validate_ship(Type, Segment, Orientation):- ship_type(Type), type_segment(Type, Segment), orientation(Orientation), validate_type_orientation(Type, Orientation).
+
+validate_hint_ship(Form, Orientation):- ship_form(Form), orientation(Orientation), validate_form_orientation(Form, Orientation).
 
 %------------------------------ setters & getters ------------------------------
 
@@ -79,6 +94,9 @@ set_number_of_ships_in_col(Col, Number):- retractall(number_of_ships_in_col(Col,
 set_ship(Row, Col, Type, Segment, Orientation):- validate_row(Row), validate_col(Col), validate_ship(Type, Segment, Orientation), retractall(water(Row, Col)), retractall(ship(Row, Col, _, _, _)), assert(ship(Row, Col, Type, Segment, Orientation)).
 get_ship(Row, Col, Type, Segment, Orientation):- validate_row(Row), validate_col(Col), ship(Row, Col, Type, Segment, Orientation).
 list_ships:- listing(ship).
+
+set_hint_ship(Row, Col, Form, Orientation):- validate_row(Row), validate_col(Col), validate_hint_ship(Form, Orientation), retractall(water(Row, Col)), retractall(hint_ship(Row, Col, _, _)), assert(hint_ship(Row, Col, Form, Orientation)).
+list_hint_ships:- listing(hint_ship).
 
 set_water(Row, Col):- validate_row(Row), validate_col(Col), retractall(ship(Row, Col, _, _, _)), assert(water(Row, Col)).
 list_waters:- listing(water).
@@ -261,13 +279,17 @@ check_diagonal(Row, Col):-
 	check_right_bottom(Row, Col).
 	
 check_row(Row):-
-	findall(Col, ship(Row, Col, _, _, _), L),
+	findall(Col, ship(Row, Col, _, _, _), L1),
+	findall(Col, hint_ship(Row, Col, _, _), L2),
+	union(L1, L2, L),
 	length(L, N),
 	number_of_ships_in_row(Row, Number),
 	N = Number.
 
 check_col(Col):-
-	findall(Row, ship(Row, Col, _, _, _), L),
+	findall(Row, ship(Row, Col, _, _, _), L1),
+	findall(Row, hint_ship(Row, Col, _, _), L2),
+	union(L1, L2, L),
 	length(L, N),
 	number_of_ships_in_col(Col, Number),
 	N = Number.
@@ -292,7 +314,7 @@ check_rules:-
 
 fill_water(Row, Col):-
 	(
-		\+ ship(Row, Col, _, _ , _)
+		\+ hint_ship(Row, Col, _, _), \+ ship(Row, Col, _, _, _)
 	->
 		set_water(Row, Col)
 	;
@@ -329,6 +351,7 @@ check_clue:-
 clear:-
 	retractall(board_size(_, _)),
 	retractall(ship(_, _, _, _, _)),
+	retractall(hint_ship(_, _, _, _)),
 	retractall(water(_, _)),
 	retractall(number_of_ships_in_row(_, _)),
 	retractall(number_of_ships_in_col(_, _)).
@@ -527,8 +550,8 @@ test_6:-
 	set_number_of_ships_in_col(5, 0),
 	set_number_of_ships_in_col(6, 3),
 
-	set_ship(2, 2, destroyer, 2, vertical),
-    set_ship(2, 6, cruiser, 1, vertical),
+	set_hint_ship(2, 2, end, vertical),
+    set_hint_ship(2, 6, start, vertical),
 	
 	print_board,
 	
@@ -547,8 +570,13 @@ print_cell(Row, Col):-
 	(
 		ship(Row, Col, Type, Segment, Orientation)
 	->
-		ship_segment_form(Type, Segment, Raw),
-		symbol_value(Raw, Orientation, Symbol),
+		ship_segment_form(Type, Segment, Form),
+		symbol_value(Form, Orientation, Symbol),
+		write(Symbol)
+	;
+		hint_ship(Row, Col, Form, Orientation)
+	->
+		symbol_value(Form, Orientation, Symbol),
 		write(Symbol)
 	;
 		water(Row, Col)
