@@ -58,6 +58,7 @@ orientation(vertical).
 :- dynamic(ship/5).
 :- dynamic(hint_ship/4).
 :- dynamic(water/2).
+:- dynamic(ship_count/2).
 
 %------------------------------ validations ------------------------------
 
@@ -103,6 +104,9 @@ list_hint_ships:- listing(hint_ship).
 
 set_water(Row, Col):- validate_row(Row), validate_col(Col), retractall(ship(Row, Col, _, _, _)), assert(water(Row, Col)).
 list_waters:- listing(water).
+
+set_ship_count(Type, Count):- ship_type(Type), retractall(ship_count(Type, _)), assert(ship_count(Type, Count)).
+list_ship_counts:- listing(ship_count).
 
 %------------------------------ check_left ------------------------------
 
@@ -294,56 +298,199 @@ check_rules:-
 %------------------------------ fill_row_col_water ------------------------------
 
 fill_water(Row, Col):-
-	(
-		\+ hint_ship(Row, Col, _, _), \+ ship(Row, Col, _, _, _)
-	->
-		set_water(Row, Col)
-	;
-		true
-	).
+	\+ hint_ship(Row, Col, _, _),
+	\+ ship(Row, Col, _, _, _),
+	set_water(Row, Col),
+	fail.
 
 fill_row_water(Row):-
-	(
-		check_row(Row)
-	->
-		board_size(_, MaxCol),
-		forall(between(1, MaxCol, Col), fill_water(Row, Col))
-	;
-		true
-	).
+	check_row(Row),
+	board_size(_, MaxCol),
+	forall(between(1, MaxCol, Col), fill_water(Row, Col)),
+	fail.
 
 fill_col_water(Col):-
-	(
-		check_col(Col)
-	->
-		board_size(MaxRow, _),
-		forall(between(1, MaxRow, Row), fill_water(Row, Col))
-	;
-		true
-	).
+	check_col(Col),
+	board_size(MaxRow, _),
+	forall(between(1, MaxRow, Row), fill_water(Row, Col)),
+	fail.
 
 check_clue:-
 	board_size(MaxRow, MaxCol),
-	forall(between(1, MaxRow, Row), fill_row_water(Row)),
-	forall(between(1, MaxCol, Col), fill_col_water(Col)).
+	forall(between(1, MaxRow, Row), \+ fill_row_water(Row)),
+	forall(between(1, MaxCol, Col), \+ fill_col_water(Col)).
 
 %------------------------------ fill_ship_around_water ------------------------------
 
-fill_ship_around_water(Row, Col, submarine, Orientation):- true.
+fill_ship_left_water(Row, Col):-
+	Col > 1,
+	PreviousCol is Col - 1,
+	fill_water(Row, PreviousCol),
+	fail.
 
-fill_ship_around_water(Row, Col, start, Orientation):- true.
+fill_ship_up_water(Row, Col):-
+	Row > 1,
+	PreviousRow is Row - 1,
+	fill_water(PreviousRow, Col),
+	fail.
 
-fill_ship_around_water(Row, Col, middle, Orientation):- true.
+fill_ship_right_water(Row, Col):-
+	board_size(_, MaxCol),
+	Col < MaxCol,
+	NextCol is Col + 1,
+	fill_water(Row, NextCol),
+	fail.
 
-fill_ship_around_water(Row, Col, end, Orientation):- true.
+fill_ship_down_water(Row, Col):-
+	board_size(MaxRow, _),
+	Row < MaxRow,
+	NextRow is Row + 1,
+	fill_water(NextRow, Col),
+	fail.
 
-helper_ship_around(Row, Col, Type, Segment, Orientation):-
+fill_ship_left_upper_water(Row, Col):-
+	Row > 1, Col > 1,
+	PreviousRow is Row - 1,
+	PreviousCol is Col - 1,
+	fill_water(PreviousRow, PreviousCol),
+	fail.
+
+fill_ship_left_bottom_water(Row, Col):-
+	board_size(MaxRow, _),
+	Row < MaxRow, Col > 1,
+	NextRow is Row + 1,
+	PreviousCol is Col - 1,
+	fill_water(NextRow, PreviousCol),
+	fail.
+
+fill_ship_right_upper_water(Row, Col):-
+	board_size(_, MaxCol),
+	Row > 1, Col < MaxCol,
+	PreviousRow is Row - 1,
+	NextCol is Col + 1,
+	fill_water(PreviousRow, NextCol),
+	fail.
+
+fill_ship_right_bottom_water(Row, Col):-
+	board_size(MaxRow, MaxCol),
+	Row < MaxRow, Col < MaxCol,
+	NextRow is Row + 1,
+	NextCol is Col + 1,
+	fill_water(NextRow, NextCol),
+	fail.
+
+fill_ship_around_water(Row, Col, _, _):-
+	\+ fill_ship_left_upper_water(Row, Col),
+	\+ fill_ship_left_bottom_water(Row, Col),
+	\+ fill_ship_right_upper_water(Row, Col),
+	\+ fill_ship_right_bottom_water(Row, Col),
+	fail.
+
+fill_ship_around_water(Row, Col, submarine, _):-
+	!,
+	\+ fill_ship_left_water(Row, Col),
+	\+ fill_ship_up_water(Row, Col),
+	\+ fill_ship_right_water(Row, Col),
+	\+ fill_ship_down_water(Row, Col),
+	fail.
+
+fill_ship_around_water(Row, Col, start, horizontal):-
+	!,
+	\+ fill_ship_left_water(Row, Col),
+	\+ fill_ship_up_water(Row, Col),
+	\+ fill_ship_down_water(Row, Col),
+	fail.
+
+fill_ship_around_water(Row, Col, start, vertical):-
+	!,
+	\+ fill_ship_left_water(Row, Col),
+	\+ fill_ship_up_water(Row, Col),
+	\+ fill_ship_right_water(Row, Col),
+	fail.
+
+fill_ship_around_water(Row, Col, end, horizontal):-
+	!,
+	\+ fill_ship_up_water(Row, Col),
+	\+ fill_ship_right_water(Row, Col),
+	\+ fill_ship_down_water(Row, Col),
+	fail.
+
+fill_ship_around_water(Row, Col, end, vertical):-
+	!,
+	\+ fill_ship_left_water(Row, Col),
+	\+ fill_ship_right_water(Row, Col),
+	\+ fill_ship_down_water(Row, Col),
+	fail.
+
+helper_fill_ship_around_water(Row, Col, Type, Segment, Orientation):-
 	ship_segment_form(Type, Segment, Form),
 	fill_ship_around_water(Row, Col, Form, Orientation).
 
 check_ship_around:-
-	forall(ship(Row, Col, Type, Segment, Orientation), helper_ship_around(Row, Col, Type, Segment, Orientation)),
-	forall(hint_ship(Row, Col, Form, Orientation), fill_ship_around_water(Row, Col, Form, Orientation)).
+	forall(ship(Row, Col, Type, Segment, Orientation), \+ helper_fill_ship_around_water(Row, Col, Type, Segment, Orientation)),
+	forall(hint_ship(Row, Col, Form, Orientation), \+ fill_ship_around_water(Row, Col, Form, Orientation)).
+
+%------------------------------ fill_ship ------------------------------
+
+
+	 
+
+%------------------------------ solve ------------------------------
+
+solve:-
+	check_clue,
+	print_board,
+	check_ship_around.
+
+%------------------------------ prints ------------------------------
+
+print_row_clue(Row):- number_of_ships_in_row(Row, Clue), write(Clue).
+
+print_col_clue(Col):- number_of_ships_in_col(Col, Clue), write(Clue), write(' ').
+
+print_cell(Row, Col):-
+	board_size(_, MaxCol),
+	(
+		ship(Row, Col, Type, Segment, Orientation)
+	->
+		ship_segment_form(Type, Segment, Form),
+		symbol_value(Form, Orientation, Symbol),
+		write(Symbol)
+	;
+		hint_ship(Row, Col, Form, Orientation)
+	->
+		symbol_value(Form, Orientation, Symbol),
+		write(Symbol)
+	;
+		water(Row, Col)
+	->
+		write('~')
+	;
+		write('.')
+	),
+	write(' '),
+	(
+		Col = MaxCol
+	->
+		write('| '),
+		print_row_clue(Row),
+		writeln('')
+	;
+		true
+	).
+
+print_board:-
+	board_size(MaxRow, MaxCol),
+	forall(between(1, MaxRow, Row),
+		forall(between(1, MaxCol, Col),
+			print_cell(Row, Col))),
+	forall(between(1, MaxCol, Col),
+		write('- ')),
+	writeln(''),
+	forall(between(1, MaxCol, Col),
+		print_col_clue(Col)),
+	writeln(''),
+	writeln('').
 	
 %------------------------------ clear ------------------------------
 
@@ -351,6 +498,7 @@ clear:-
 	retractall(board_size(_, _)),
 	retractall(ship(_, _, _, _, _)),
 	retractall(hint_ship(_, _, _, _)),
+	retractall(ship_count(_, _)),
 	retractall(water(_, _)),
 	retractall(number_of_ships_in_row(_, _)),
 	retractall(number_of_ships_in_col(_, _)).
@@ -549,98 +697,49 @@ test_6:-
 	set_number_of_ships_in_col(5, 0),
 	set_number_of_ships_in_col(6, 3),
 
+	set_ship_count(submarine, 3),
+	set_ship_count(destroyer, 2),
+	set_ship_count(cruiser, 1),
+	set_ship_count(battleship, 0),
+
 	set_hint_ship(2, 2, end, vertical),
     set_hint_ship(2, 6, start, vertical),
 	
 	print_board,
 	
-	check_clue,
+	solve,
 
 	print_board.
 
-test_8:-
+test_7:-
 	clear,
   
-  	set_board_size(10, 10),
+  	set_board_size(8, 8),
   
-  	set_number_of_ships_in_row(1, 1),
-	set_number_of_ships_in_row(2, 2),
-	set_number_of_ships_in_row(3, 1),
-	set_number_of_ships_in_row(4, 5),
-	set_number_of_ships_in_row(5, 1),
+  	set_number_of_ships_in_row(1, 5),
+	set_number_of_ships_in_row(2, 1),
+	set_number_of_ships_in_row(3, 3),
+	set_number_of_ships_in_row(4, 1),
+	set_number_of_ships_in_row(5, 2),
 	set_number_of_ships_in_row(6, 2),
 	set_number_of_ships_in_row(7, 2),
 	set_number_of_ships_in_row(8, 1),
-	set_number_of_ships_in_row(9, 0),
-	set_number_of_ships_in_row(10, 1),
   
-	set_number_of_ships_in_col(1, 1),
-	set_number_of_ships_in_col(2, 1),
-	set_number_of_ships_in_col(3, 1),
-	set_number_of_ships_in_col(4, 2),
-	set_number_of_ships_in_col(5, 3),
-	set_number_of_ships_in_col(6, 4),
-	set_number_of_ships_in_col(7, 1),
+	set_number_of_ships_in_col(1, 3),
+	set_number_of_ships_in_col(2, 2),
+	set_number_of_ships_in_col(3, 2),
+	set_number_of_ships_in_col(4, 3),
+	set_number_of_ships_in_col(5, 2),
+	set_number_of_ships_in_col(6, 2),
+	set_number_of_ships_in_col(7, 2),
 	set_number_of_ships_in_col(8, 1),
-	set_number_of_ships_in_col(9, 4),
-	set_number_of_ships_in_col(10, 2),
 
+	set_hint_ship(1, 7, start, horizontal),
+	set_hint_ship(3, 4, middle, none),
+	set_hint_ship(7, 2, submarine, none),
 
-	set_hint_ship(3, 1, submarine, none),
-    set_hint_ship(10, 2, submarine, none),
-    set_hint_ship(9, 8, middle, none),
 	print_board,
-  
-	check_clue,
+
+	solve,
 
 	print_board.
-	
-%------------------------------ prints ------------------------------
-
-print_row_clue(Row):- number_of_ships_in_row(Row, Clue), write(Clue).
-
-print_col_clue(Col):- number_of_ships_in_col(Col, Clue), write(Clue), write(' ').
-
-print_cell(Row, Col):-
-	board_size(_, MaxCol),
-	(
-		ship(Row, Col, Type, Segment, Orientation)
-	->
-		ship_segment_form(Type, Segment, Form),
-		symbol_value(Form, Orientation, Symbol),
-		write(Symbol)
-	;
-		hint_ship(Row, Col, Form, Orientation)
-	->
-		symbol_value(Form, Orientation, Symbol),
-		write(Symbol)
-	;
-		water(Row, Col)
-	->
-		write('~')
-	;
-		write('.')
-	),
-	write(' '),
-	(
-		Col = MaxCol
-	->
-		write('| '),
-		print_row_clue(Row),
-		writeln('')
-	;
-		true
-	).
-
-print_board:-
-	board_size(MaxRow, MaxCol),
-	forall(between(1, MaxRow, Row),
-		forall(between(1, MaxCol, Col),
-			print_cell(Row, Col))),
-	forall(between(1, MaxCol, Col),
-		write('- ')),
-	writeln(''),
-	forall(between(1, MaxCol, Col),
-		print_col_clue(Col)),
-	writeln(''),
-	writeln('').
