@@ -40,9 +40,7 @@ ship_segment_form(battleship, 4, end).
 symbol_value(submarine, none, '●').
 symbol_value(start, horizontal, '◀').
 symbol_value(start, vertical, '▲').
-symbol_value(middle, none, '■').
-symbol_value(middle, horizontal, '■').
-symbol_value(middle, vertical, '■').
+symbol_value(middle, _, '■').
 symbol_value(end, horizontal, '▶').
 symbol_value(end, vertical, '▼').
 
@@ -433,7 +431,6 @@ check_ship_around:-
 %------------------------------ fill_ship ------------------------------
 
 
-	 
 
 %------------------------------ solve ------------------------------
 
@@ -734,7 +731,7 @@ test_7:-
 	set_number_of_ships_in_col(7, 2),
 	set_number_of_ships_in_col(8, 1),
 
-	set_hint_ship(1, 7, start, horizontal),
+	set_hint_ship(1, 8, end, horizontal),
 	set_hint_ship(3, 4, middle, none),
 	set_hint_ship(7, 2, submarine, none),
 
