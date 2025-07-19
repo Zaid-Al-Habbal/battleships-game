@@ -428,16 +428,429 @@ check_ship_around:-
 	forall(ship(Row, Col, Type, Segment, Orientation), \+ helper_fill_ship_around_water(Row, Col, Type, Segment, Orientation)),
 	forall(hint_ship(Row, Col, Form, Orientation), \+ fill_ship_around_water(Row, Col, Form, Orientation)).
 
-%------------------------------ fill_ship ------------------------------
+%------------------------------ backtracking ------------------------------
+
+helper_ship(Row, Col):-
+	ship(Row, Col, _, _, _).
+
+helper_hint_ship(Row, Col):-
+	hint_ship(Row, Col, _, _).
+
+check_left(Row, Col, Predicate):-
+	Col = 0;
+	(
+		PreviousCol is Col - 1,
+		\+ call(Predicate, Row, PreviousCol)
+	).
+
+check_up(Row, Col, Predicate):-
+	Row = 0;
+	(
+		PreviousRow is Row - 1,
+		\+ call(Predicate, PreviousRow, Col)
+	).
+
+check_right(Row, Col, Predicate):-
+	board_size(_, MaxCol),
+	Col = MaxCol;
+	(
+		NextCol is Col + 1,
+		\+ call(Predicate, Row, NextCol)
+	).
+
+check_down(Row, Col, Predicate):-
+	board_size(MaxRow, _),
+	Row = MaxRow;
+	(
+		NextRow is Row + 1,
+		\+ call(Predicate, NextRow, Col)
+	).
+
+check_left_upper(Row, Col, Predicate):-
+	(
+		Row = 0;
+		Col = 0
+	);
+	(
+		PreviousRow is Row - 1,
+		PreviousCol is Col - 1,
+		\+ call(Predicate, PreviousRow, PreviousCol)
+	).
+
+check_left_bottom(Row, Col, Predicate):-
+	board_size(MaxRow, _),
+	(
+		Row = MaxRow;
+		Col = 0
+	);
+	(
+		NextRow is Row + 1,
+		PreviousCol is Col - 1,
+		\+ call(Predicate, NextRow, PreviousCol)
+	).
+
+check_right_upper(Row, Col, Predicate):-
+	board_size(_, MaxCol),
+	(
+		Row = 0;
+		Col = MaxCol
+	);
+	(
+		PreviousRow is Row - 1,
+		NextCol is Col + 1,
+		\+ call(Predicate, PreviousRow, NextCol)
+	).
+
+check_right_bottom(Row, Col, Predicate):-
+	board_size(MaxRow, MaxCol),
+	(
+		Row = MaxRow;
+		Col = MaxCol
+	);
+	(
+		NextRow is Row + 1,
+		NextCol is Col + 1,
+		\+ call(Predicate, NextRow, NextCol)
+	).
+
+check_adj(Row, Col, Predicate):-
+	check_left(Row, Col, Predicate),
+	check_up(Row, Col, Predicate),
+	check_right(Row, Col, Predicate),
+	check_down(Row, Col, Predicate).
+
+check_diagonal(Row, Col, Predicate):-
+	check_left_upper(Row, Col, Predicate),
+	check_left_bottom(Row, Col, Predicate),
+	check_right_upper(Row, Col, Predicate),
+	check_right_bottom(Row, Col, Predicate).
+
+valid_placement(Row, Col, submarine, none):-
+	check_adj(Row, Col, helper_ship),
+	check_adj(Row, Col, helper_hint_ship),
+	check_diagonal(Row, Col, helper_ship),
+	check_diagonal(Row, Col, helper_hint_ship).
+
+valid_placement(Row, Col, destroyer, horizontal):-
+	board_size(_, MaxCol),
+	Col < MaxCol,
+	check_diagonal(Row, Col, helper_ship), check_diagonal(Row, Col, helper_hint_ship),
+	check_left(Row, Col, helper_ship), check_left(Row, Col, helper_hint_ship),
+	check_up(Row, Col, helper_ship), check_up(Row, Col, helper_hint_ship),
+	check_down(Row, Col, helper_ship), check_down(Row, Col, helper_hint_ship),
+	NextCol is Col + 1,
+	(
+		ship(Row, NextCol, destroyer, 2, horizontal);
+		\+ ship(Row, NextCol, _, _, _);
+		\+ water(Row, NextCol)
+	),
+	(
+		hint_ship(Row, NextCol, end, horizontal);
+		\+ hint_ship(Row, NextCol, _, _);
+		\+ water(Row, NextCol)
+	),
+	check_diagonal(Row, NextCol, helper_ship), check_diagonal(Row, NextCol, helper_hint_ship),
+	check_up(Row, NextCol, helper_ship), check_up(Row, NextCol, helper_hint_ship),
+	check_right(Row, NextCol, helper_ship), check_right(Row, NextCol, helper_hint_ship),
+	check_down(Row, NextCol, helper_ship), check_down(Row, NextCol, helper_hint_ship).
+
+valid_placement(Row, Col, destroyer, vertical):-
+	board_size(MaxRow, _),
+	Row < MaxRow,
+	check_diagonal(Row, Col, helper_ship), check_diagonal(Row, Col, helper_hint_ship),
+	check_left(Row, Col, helper_ship), check_left(Row, Col, helper_hint_ship),
+	check_up(Row, Col, helper_ship), check_up(Row, Col, helper_hint_ship),
+	check_right(Row, Col, helper_ship), check_right(Row, Col, helper_hint_ship),
+	NextRow is Row + 1,
+	(
+		ship(NextRow, Col, destroyer, 2, vertical);
+		\+ ship(NextRow, Col, _, _, _);
+		\+ water(NextRow, Col)
+	),
+	(
+		hint_ship(NextRow, Col, end, vertical);
+		\+ hint_ship(NextRow, Col, _, _);
+		\+ water(NextRow, Col)
+	),
+	check_diagonal(NextRow, Col, helper_ship), check_diagonal(NextRow, Col, helper_hint_ship),
+	check_left(NextRow, Col, helper_ship), check_left(NextRow, Col, helper_hint_ship),
+	check_right(NextRow, Col, helper_ship), check_right(NextRow, Col, helper_hint_ship),
+	check_down(NextRow, Col, helper_ship), check_down(NextRow, Col, helper_hint_ship).
+
+valid_placement(Row, Col, cruiser, horizontal):-
+	board_size(_, MaxCol),
+	PreviousMaxCol is MaxCol - 1,
+	Col < PreviousMaxCol,
+	check_diagonal(Row, Col, helper_ship), check_diagonal(Row, Col, helper_hint_ship),
+	check_left(Row, Col, helper_ship), check_left(Row, Col, helper_hint_ship),
+	check_up(Row, Col, helper_ship), check_up(Row, Col, helper_hint_ship),
+	check_down(Row, Col, helper_ship), check_down(Row, Col, helper_hint_ship),
+	NextCol is Col + 1,
+	(
+		ship(Row, NextCol, cruiser, 2, horizontal);
+		\+ ship(Row, NextCol, _, _, _);
+		\+ water(Row, NextCol)
+	),
+	(
+		hint_ship(Row, NextCol, middle, none);
+		\+ hint_ship(Row, NextCol, _, _);
+		\+ water(Row, NextCol)
+	),
+	check_diagonal(Row, NextCol, helper_ship), check_diagonal(Row, NextCol, helper_hint_ship),
+	check_up(Row, NextCol, helper_ship), check_up(Row, NextCol, helper_hint_ship),
+	check_down(Row, NextCol, helper_ship), check_down(Row, NextCol, helper_hint_ship),
+	NextNextCol is Col + 2,
+	(
+		ship(Row, NextNextCol, cruiser, 3, horizontal);
+		\+ ship(Row, NextNextCol, _, _, _);
+		\+ water(Row, NextNextCol)
+	),
+	(
+		hint_ship(Row, NextNextCol, end, horizontal);
+		\+ hint_ship(Row, NextNextCol, _, _);
+		\+ water(Row, NextNextCol)
+	),
+	check_diagonal(Row, NextNextCol, helper_ship), check_diagonal(Row, NextNextCol, helper_hint_ship),
+	check_up(Row, NextNextCol, helper_ship), check_up(Row, NextNextCol, helper_hint_ship),
+	check_right(Row, NextNextCol, helper_ship), check_right(Row, NextNextCol, helper_hint_ship),
+	check_down(Row, NextNextCol, helper_ship), check_down(Row, NextNextCol, helper_hint_ship).
+
+valid_placement(Row, Col, cruiser, vertical):-
+	board_size(MaxRow, _),
+	PreviousMaxRow is MaxRow - 1,
+	Row < PreviousMaxRow,
+	check_diagonal(Row, Col, helper_ship), check_diagonal(Row, Col, helper_hint_ship),
+	check_left(Row, Col, helper_ship), check_left(Row, Col, helper_hint_ship),
+	check_up(Row, Col, helper_ship), check_up(Row, Col, helper_hint_ship),
+	check_right(Row, Col, helper_ship), check_right(Row, Col, helper_hint_ship),
+	NextRow is Row + 1,
+	(
+		ship(NextRow, Col, cruiser, 2, vertical);
+		\+ ship(NextRow, Col, _, _, _);
+		\+ water(NextRow, Col)
+	),
+	(
+		hint_ship(NextRow, Col, middle, none);
+		\+ hint_ship(NextRow, Col, _, _);
+		\+ water(NextRow, Col)
+	),
+	check_diagonal(NextRow, Col, helper_ship), check_diagonal(NextRow, Col, helper_hint_ship),
+	check_left(NextRow, Col, helper_ship), check_left(NextRow, Col, helper_hint_ship),
+	check_right(NextRow, Col, helper_ship), check_right(NextRow, Col, helper_hint_ship),
+	NextNextRow is Row + 2,
+	(
+		ship(NextNextRow, Col, cruiser, 3, vertical);
+		\+ ship(NextNextRow, Col, _, _, _);
+		\+ water(NextNextRow, Col)
+	),
+	(
+		hint_ship(NextNextRow, Col, end, vertical);
+		\+ hint_ship(NextNextRow, Col, _, _);
+		\+ water(NextNextRow, Col)
+	),
+	check_diagonal(NextNextRow, Col, helper_ship), check_diagonal(NextNextRow, Col, helper_hint_ship),
+	check_left(NextNextRow, Col, helper_ship), check_left(NextNextRow, Col, helper_hint_ship),
+	check_right(NextNextRow, Col, helper_ship), check_right(NextNextRow, Col, helper_hint_ship),
+	check_down(NextNextRow, Col, helper_ship), check_right(NextNextRow, Col, helper_hint_ship).
+
+valid_placement(Row, Col, battleship, horizontal):-
+	board_size(_, MaxCol),
+	PreviousPreviousCol is MaxCol - 2,
+	Col < PreviousPreviousCol,
+	check_diagonal(Row, Col, helper_ship), check_diagonal(Row, Col, helper_hint_ship),
+	check_left(Row, Col, helper_ship), check_left(Row, Col, helper_hint_ship),
+	check_up(Row, Col, helper_ship), check_up(Row, Col, helper_hint_ship),
+	check_down(Row, Col, helper_ship), check_down(Row, Col, helper_hint_ship),
+	NextCol is Col + 1,
+	(
+		ship(Row, NextCol, battleship, 2, horizontal);
+		\+ ship(Row, NextCol, _, _, _);
+		\+ water(Row, NextCol)
+	),
+	(
+		hint_ship(Row, NextCol, middle, none);
+		\+ hint_ship(Row, NextCol, _, _);
+		\+ water(Row, NextCol)
+	),
+	check_diagonal(Row, NextCol, helper_ship), check_diagonal(Row, NextCol, helper_hint_ship),
+	check_up(Row, NextCol, helper_ship), check_up(Row, NextCol, helper_hint_ship),
+	check_down(Row, NextCol, helper_ship), check_down(Row, NextCol, helper_hint_ship),
+	NextNextCol is Col + 2,
+	(
+		ship(Row, NextNextCol, battleship, 3, horizontal);
+		\+ ship(Row, NextNextCol, _, _, _);
+		\+ water(Row, NextNextCol)
+	),
+	(
+		hint_ship(Row, NextNextCol, middle, none);
+		\+ hint_ship(Row, NextNextCol, _, _);
+		\+ water(Row, NextNextCol)
+	),
+	check_diagonal(Row, NextNextCol, helper_ship), check_diagonal(Row, NextNextCol, helper_hint_ship),
+	check_up(Row, NextNextCol, helper_ship), check_up(Row, NextNextCol, helper_hint_ship),
+	check_down(Row, NextNextCol, helper_ship), check_down(Row, NextNextCol, helper_hint_ship),
+	NextNextNextCol is Col + 3,
+	(
+		ship(Row, NextNextNextCol, battleship, 4, horizontal);
+		\+ ship(Row, NextNextNextCol, _, _, _);
+		\+ water(Row, NextNextNextCol)
+	),
+	(
+		hint_ship(Row, NextNextNextCol, end, horizontal);
+		\+ hint_ship(Row, NextNextNextCol, _, _);
+		\+ water(Row, NextNextNextCol)
+	),
+	check_diagonal(Row, NextNextNextCol, helper_ship), check_diagonal(Row, NextNextNextCol, helper_hint_ship),
+	check_up(Row, NextNextNextCol, helper_ship), check_up(Row, NextNextNextCol, helper_hint_ship),
+	check_right(Row, NextNextNextCol, helper_ship), check_right(Row, NextNextNextCol, helper_hint_ship),
+	check_down(Row, NextNextNextCol, helper_ship), check_down(Row, NextNextNextCol, helper_hint_ship).
 
 
+valid_placement(Row, Col, battleship, vertical):-
+	board_size(MaxRow, _),
+	PreviousPreviousMaxRow is MaxRow - 2,
+	Row < PreviousPreviousMaxRow,
+	check_diagonal(Row, Col, helper_ship), check_diagonal(Row, Col, helper_hint_ship),
+	check_left(Row, Col, helper_ship), check_left(Row, Col, helper_hint_ship),
+	check_up(Row, Col, helper_ship), check_up(Row, Col, helper_hint_ship),
+	check_right(Row, Col, helper_ship), check_right(Row, Col, helper_hint_ship),
+	NextRow is Row + 1,
+	(
+		ship(NextRow, Col, battleship, 2, vertical);
+		\+ ship(NextRow, Col, _, _, _);
+		\+ water(NextRow, Col)
+	),
+	(
+		hint_ship(NextRow, Col, middle, none);
+		\+ hint_ship(NextRow, Col, _, _);
+		\+ water(NextRow, Col)
+	),
+	check_diagonal(NextRow, Col, helper_ship), check_diagonal(NextRow, Col, helper_hint_ship),
+	check_left(NextRow, Col, helper_ship), check_left(NextRow, Col, helper_hint_ship),
+	check_right(NextRow, Col, helper_ship), check_right(NextRow, Col, helper_hint_ship),
+	NextNextRow is Row + 2,
+	(
+		ship(NextNextRow, Col, battleship, 3, vertical);
+		\+ ship(NextNextRow, Col, _, _, _);
+		\+ water(NextNextRow, Col)
+	),
+	(
+		hint_ship(NextNextRow, Col, middle, none);
+		\+ hint_ship(NextNextRow, Col, _, _);
+		\+ water(NextNextRow, Col)
+	),
+	check_diagonal(NextNextRow, Col, helper_ship), check_diagonal(NextNextRow, Col, helper_hint_ship),
+	check_left(NextNextRow, Col, helper_ship), check_left(NextNextRow, Col, helper_hint_ship),
+	check_right(NextNextRow, Col, helper_ship), check_right(NextNextRow, Col, helper_hint_ship),
+	NextNextNextRow is Row + 3,
+	(
+		ship(NextNextNextRow, Col, battleship, 4, vertical);
+		\+ ship(NextNextNextRow, Col, _, _, _);
+		\+ water(NextNextNextRow, Col)
+	),
+	(
+		hint_ship(NextNextNextRow, Col, end, none);
+		\+ hint_ship(NextNextNextRow, Col, _, _);
+		\+ water(NextNextNextRow, Col)
+	),
+	check_left(NextNextNextRow, Col, helper_ship), check_left(NextNextNextRow, Col, helper_hint_ship),
+	check_right(NextNextNextRow, Col, helper_ship), check_right(NextNextNextRow, Col, helper_hint_ship),
+	check_down(NextNextNextRow, Col, helper_ship), check_down(NextNextNextRow, Col, helper_hint_ship).
+
+place_ship(Row, Col, submarine, none):-
+	set_ship(Row, Col, submarine, 1, none).
+
+place_ship(Row, Col, destroyer, horizontal):-
+	NextCol is Col + 1,
+	set_ship(Row, Col, destroyer, 1, horizontal),
+	set_ship(Row, NextCol, destroyer, 2, horizontal).
+
+place_ship(Row, Col, destroyer, vertical):-
+	NextRow is Row + 1,
+	set_ship(Row, Col, destroyer, 1, vertical),
+	set_ship(NextRow, Col, destroyer, 2, vertical).
+
+place_ship(Row, Col, cruiser, horizontal):-
+	NextCol is Col + 1,
+	NextNextCol is Col + 2,
+	set_ship(Row, Col, cruiser, 1, horizontal),
+	set_ship(Row, NextCol, cruiser, 2, horizontal),
+	set_ship(Row, NextNextCol, cruiser, 3, horizontal).
+
+place_ship(Row, Col, cruiser, vertical):-
+	NextRow is Row + 1,
+	NextNextRow is Row + 2,
+	set_ship(Row, Col, cruiser, 1, vertical),
+	set_ship(NextRow, Col, cruiser, 2, vertical),
+	set_ship(NextNextRow, Col, cruiser, 3, vertical).
+
+place_ship(Row, Col, battleship, horizontal):-
+	NextCol is Col + 1,
+	NextNextCol is Col + 2,
+	NextNextNextCol is Col + 3,
+	set_ship(Row, Col, battleship, 1, horizontal),
+	set_ship(Row, NextCol, battleship, 2, horizontal),
+	set_ship(Row, NextNextCol, battleship, 3, horizontal),
+	set_ship(Row, NextNextNextCol, battleship, 4, horizontal).
+
+place_ship(Row, Col, battleship, vertical):-
+	NextRow is Row + 1,
+	NextNextRow is Row + 2,
+	NextNextNextRow is Row + 3,
+	set_ship(Row, Col, battleship, 1, vertical),
+	set_ship(NextRow, Col, battleship, 2, vertical),
+	set_ship(NextNextRow, Col, battleship, 3, vertical),
+	set_ship(NextNextNextRow, Col, battleship, 4, vertical).
+
+remove_ship(Row, Col, submarine, none):-
+	retractall(ship(Row, Col, _, _, _)).
+
+remove_ship(Row, Col, destroyer, horizontal):-
+	NextCol is Col + 1,
+	retractall(ship(Row, Col, _, _, _)),
+	retractall(ship(Row, NextCol, _, _, _)).
+
+remove_ship(Row, Col, destroyer, vertical):-
+	NextRow is Row + 1,
+	retractall(ship(Row, Col, _, _, _)),
+	retractall(ship(NextRow, Col, _, _, _)).
+
+remove_ship(Row, Col, cruiser, horizontal):-
+	NextCol is Col + 1,
+	NextNextCol is Col + 2,
+	retractall(ship(Row, Col, _, _, _)),
+	retractall(ship(Row, NextCol, _, _, _)),
+	retractall(ship(Row, NextNextCol, _, _, _)).
+
+remove_ship(Row, Col, cruiser, vertical):-
+	NextRow is Row + 1,
+	NextNextRow is Row + 2,
+	retractall(ship(Row, Col, _, _, _)),
+	retractall(ship(NextRow, Col, _, _, _)),
+	retractall(ship(NextNextRow, Col, _, _, _)).
+
+remove_ship(Row, Col, battleship, horizontal):-
+	NextCol is Col + 1,
+	NextNextCol is Col + 2,
+	NextNextNextCol is Col + 3,
+	retractall(ship(Row, Col, _, _, _)),
+	retractall(ship(Row, NextCol, _, _, _)),
+	retractall(ship(Row, NextNextCol, _, _, _)),
+	retractall(ship(Row, NextNextNextCol, _, _, _)).
+
+remove_ship(Row, Col, battleship, vertical):-
+	NextRow is Row + 1,
+	NextNextRow is Row + 2,
+	NextNextNextRow is Row + 3,
+	retractall(ship(Row, Col, _, _, _)),
+	retractall(ship(NextRow, Col, _, _, _)),
+	retractall(ship(NextNextRow, Col, _, _, _)),
+	retractall(ship(NextNextNextRow, Col, _, _, _)).
 
 %------------------------------ solve ------------------------------
 
 solve:-
-	check_clue,
-	print_board,
-	check_ship_around.
+	!.
 
 %------------------------------ prints ------------------------------
 
@@ -701,10 +1114,6 @@ test_6:-
 
 	set_hint_ship(2, 2, end, vertical),
     set_hint_ship(2, 6, start, vertical),
-	
-	print_board,
-	
-	solve,
 
 	print_board.
 
@@ -734,9 +1143,5 @@ test_7:-
 	set_hint_ship(1, 8, end, horizontal),
 	set_hint_ship(3, 4, middle, none),
 	set_hint_ship(7, 2, submarine, none),
-
-	print_board,
-
-	solve,
 
 	print_board.
