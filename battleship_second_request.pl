@@ -306,13 +306,13 @@ fill_water(Row, Col):-
 fill_row_water(Row):-
 	check_row(Row),
 	board_size(_, MaxCol),
-	forall(between(1, MaxCol, Col), fill_water(Row, Col)),
+	forall(between(1, MaxCol, Col), \+ fill_water(Row, Col)),
 	fail.
 
 fill_col_water(Col):-
 	check_col(Col),
 	board_size(MaxRow, _),
-	forall(between(1, MaxRow, Row), fill_water(Row, Col)),
+	forall(between(1, MaxRow, Row), \+ fill_water(Row, Col)),
 	fail.
 
 check_clue:-
